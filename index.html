@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SUI-USDC LPダッシュボード</title>
+<meta name="description" content="Cetus SUI-USDC 集中流動性の手数料・レンジ試算ツール。ウォレットアドレス不要。">
+<meta name="theme-color" content="#c96442">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<style>
+:root {
+  --bg: #f5f4ed;
+  --card: #faf9f5;
+  --sand: #e8e6dc;
+  --border: #e8e6dc;
+  --ring: #d1cfc5;
+  --text: #141413;
+  --text2: #5e5d59;
+  --text3: #87867f;
+  --accent: #c96442;
+  --accent-soft: rgba(201, 100, 66, .10);
+  --good: #4f7a52;
+  --bad: #b53333;
+  --warn: #a8741a;
+  --focus: #3898ec;
+  --shadow: 0 0 0 1px var(--border);
+  --serif: "Anthropic Serif", Georgia, "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --sans: "Anthropic Sans", system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413; --card: #1d1d1b; --sand: #30302e; --border: #30302e; --ring: #4d4c48;
+    --text: #faf9f5; --text2: #b0aea5; --text3: #87867f;
+    --accent: #d97757; --accent-soft: rgba(217, 119, 87, .14);
+    --good: #8fbf8f; --bad: #e07a7a; --warn: #d9a441;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413; --card: #1d1d1b; --sand: #30302e; --border: #30302e; --ring: #4d4c48;
+  --text: #faf9f5; --text2: #b0aea5; --text3: #87867f;
+  --accent: #d97757; --accent-soft: rgba(217, 119, 87, .14);
+  --good: #8fbf8f; --bad: #e07a7a; --warn: #d9a441;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-size: 16px; line-height: 1.55;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 500; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(26px, 5vw, 36px); }
+h2 { font-size: 22px; margin-bottom: 4px; }
+h3 { font-size: 17px; }
+p { margin: 0; }
+.sub { color: var(--text2); font-size: 14px; }
+.small { font-size: 13px; color: var(--text3); }
+.num { font-variant-numeric: tabular-nums; }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+.seg { display: inline-flex; background: var(--sand); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button {
+  font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--text2);
+  padding: 8px 14px; border-radius: 8px; cursor: pointer; min-height: 40px;
+}
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 0 0 1px var(--ring); }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+.dot.off { background: var(--bad); }
+.dot.old { background: var(--warn); }
+.banner {
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px;
+  background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); color: var(--text);
+}
+.banner.bad { box-shadow: 0 0 0 1px var(--bad); background: rgba(181, 51, 51, .08); }
+section { margin-top: 32px; }
+section > .head { margin-bottom: 12px; }
+.grid { display: grid; gap: 12px; }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card {
+  background: var(--card); border-radius: 12px; padding: 16px; box-shadow: var(--shadow);
+  min-width: 0;
+}
+.card .k { font-size: 13px; color: var(--text2); }
+.card .v { font-family: var(--serif); font-size: 28px; line-height: 1.2; margin-top: 4px; }
+.card .v.big { font-size: 38px; }
+.card .n { font-size: 13px; color: var(--text3); margin-top: 6px; }
+.pos { color: var(--good); } .neg { color: var(--bad); } .warn { color: var(--warn); }
+form.fields, .fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+label { display: block; font-size: 13px; color: var(--text2); }
+label input, label select {
+  display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 16px; color: var(--text);
+  background: var(--bg); border: 0; border-radius: 8px; padding: 10px 12px; min-height: 44px;
+  box-shadow: 0 0 0 1px var(--ring);
+}
+input:focus, select:focus, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+input[type=range] { padding: 0; min-height: 32px; box-shadow: none; background: transparent; accent-color: var(--accent); }
+.btn {
+  font: inherit; font-size: 14px; border: 0; cursor: pointer; border-radius: 8px; padding: 9px 14px; min-height: 40px;
+  background: var(--sand); color: var(--text); box-shadow: 0 0 0 1px var(--ring);
+}
+.btn.primary { background: var(--accent); color: #fff; box-shadow: none; }
+.btn.danger { color: var(--bad); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row.sb { justify-content: space-between; }
+.tablewrap { overflow-x: auto; border-radius: 12px; box-shadow: var(--shadow); background: var(--card); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 640px; }
+th, td { padding: 10px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 500; color: var(--text2); font-size: 13px; background: var(--card); }
+tr:last-child td { border-bottom: 0; }
+tr.hl td { background: var(--accent-soft); }
+.note { font-size: 13px; color: var(--text2); margin-top: 10px; }
+.note b { color: var(--text); font-weight: 500; }
+details { margin-top: 12px; }
+summary { cursor: pointer; font-size: 14px; color: var(--text2); min-height: 32px; }
+ul.plain { margin: 8px 0 0; padding-left: 18px; color: var(--text2); font-size: 14px; }
+ul.plain li { margin: 4px 0; }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--text3); font-size: 11px; font-family: var(--sans); }
+.chart .axis { stroke: var(--border); }
+.legend { display: flex; gap: 14px; font-size: 13px; color: var(--text2); flex-wrap: wrap; }
+.hidden { display: none !important; }
+footer { margin-top: 48px; font-size: 12px; color: var(--text3); }
+@media (max-width: 480px) {
+  .card .v.big { font-size: 32px; }
+  .wrap { padding-top: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>SUI-USDC LPダッシュボード</h1>
+      <p class="sub">Cetus 集中流動性 · ウォレットアドレス不要 · 数量は手入力</p>
+    </div>
+    <div class="row">
+      <div class="seg" role="group" aria-label="手数料ティア">
+        <button type="button" data-tier="500" aria-pressed="true">0.05%</button>
+        <button type="button" data-tier="2500" aria-pressed="false">0.25%</button>
+      </div>
+      <span class="status" id="status" aria-live="polite"><span class="dot off"></span>読み込み中…</span>
+    </div>
+  </header>
+
+  <div id="banners"></div>
+
+  <section aria-labelledby="h-market">
+    <div class="head"><h2 id="h-market">市場</h2><p class="sub" id="market-sub"></p></div>
+    <div class="grid g4" id="market"></div>
+    <p class="note" id="market-note"></p>
+  </section>
+
+  <section aria-labelledby="h-pos">
+    <div class="head row sb">
+      <div><h2 id="h-pos">あなたのポジション</h2><p class="sub">入力はこの端末のブラウザにだけ保存されます。</p></div>
+      <div class="row">
+        <label style="min-width:160px">ポジション
+          <select id="pos-select" aria-label="ポジションを選択"></select>
+        </label>
+        <button class="btn" type="button" id="pos-new">新規</button>
+        <button class="btn danger" type="button" id="pos-del">削除</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="fields">
+        <label>名前<input id="f-name" type="text" autocomplete="off"></label>
+        <label>SUI 数量<input id="f-sui" type="number" inputmode="decimal" step="any" min="0" placeholder="0"></label>
+        <label>USDC 数量<input id="f-usdc" type="number" inputmode="decimal" step="any" min="0" placeholder="0"></label>
+        <label>未回収手数料 SUI<input id="f-unsui" type="number" inputmode="decimal" step="any" min="0" placeholder="0"></label>
+        <label>未回収手数料 USDC<input id="f-unusdc" type="number" inputmode="decimal" step="any" min="0" placeholder="0"></label>
+        <label>回収済み手数料 (USD)<input id="f-claimed" type="number" inputmode="decimal" step="any" min="0" placeholder="0"></label>
+        <label>開始日時<input id="f-open" type="datetime-local"></label>
+        <label>投入時 SUI 数量<input id="f-sui0" type="number" inputmode="decimal" step="any" min="0" placeholder="HODL比較用"></label>
+        <label>投入時 USDC 数量<input id="f-usdc0" type="number" inputmode="decimal" step="any" min="0" placeholder="HODL比較用"></label>
+        <label>レンジ下限 (USD/SUI)<input id="f-lower" type="number" inputmode="decimal" step="any" min="0" placeholder="例 1.00"></label>
+        <label>レンジ上限 (USD/SUI)<input id="f-upper" type="number" inputmode="decimal" step="any" min="0" placeholder="例 1.25"></label>
+        <label>ガス代累計 (SUI)<input id="f-gas" type="number" inputmode="decimal" step="any" min="0" placeholder="0"></label>
+      </div>
+      <p class="note">Cetus の画面に表示される数量をそのまま入れてください。レンジを入れると、離脱アラート・損益分岐・シナリオが有効になります。</p>
+    </div>
+    <div class="grid g4" id="pos-results" style="margin-top:12px"></div>
+    <div id="pos-alert"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" type="button" id="snap-save">この時点の資産額を記録</button>
+      <span class="small" id="snap-info"></span>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-range">
+    <div class="head"><h2 id="h-range">レンジ別 想定手数料</h2>
+      <p class="sub" id="range-sub"></p></div>
+    <div class="card">
+      <div class="fields">
+        <label>試算資金 (USD)<input id="r-v" type="number" inputmode="decimal" step="any" min="1" placeholder="空欄=ポジション評価額 or 1000"></label>
+        <label>出来高の前提
+          <select id="r-vol">
+            <option value="24h">直近24h (API)</option>
+            <option value="avg7">直近7日平均 (履歴)</option>
+            <option value="avg30">直近30日平均 (履歴)</option>
+            <option value="manual">手動入力</option>
+          </select>
+        </label>
+        <label id="r-volm-wrap" class="hidden">出来高 (USD/日)<input id="r-volm" type="number" inputmode="decimal" step="any" min="0"></label>
+        <label>日次ボラ σ (%/日)<input id="r-sigma" type="number" inputmode="decimal" step="0.1" min="0.5" placeholder="自動"></label>
+        <label>滞在率
+          <span class="row" style="margin-top:4px">
+            <input type="checkbox" id="r-stay-on" style="width:auto;min-height:0;display:inline;margin:0;box-shadow:none"> <span class="small">手動指定</span>
+          </span>
+          <input id="r-stay" type="range" min="5" max="100" step="1" value="100" disabled>
+        </label>
+      </div>
+    </div>
+    <div class="tablewrap" style="margin-top:12px"><table id="range-table"></table></div>
+    <p class="note" id="range-note"></p>
+    <details>
+      <summary>前提と限界</summary>
+      <ul class="plain">
+        <li>日次手数料 = 出来高 × 手数料率 × (1 − プロトコル手数料20%) × シェア × 滞在率。LP取り分ベースです。</li>
+        <li>シェア = 自分の流動性 ÷ (プールの現在tickの有効流動性 + 自分の流動性)。価格がレンジ内を動くと分母は変わるため、狭いレンジほど推定が振れます。</li>
+        <li>出来高は単日値のため日ごとの変動が大きいです。履歴が溜まれば平均値に切り替えられます。</li>
+        <li>離脱確率は、ドリフト0・日次ボラσ一定の対数正規モデルで、7日以内に一度でも範囲外に出る確率です。</li>
+        <li>tick は最近傍丸め (Cetus UI と同じ)。表の下限/上限は丸め後の価格です。</li>
+        <li>報酬(rewarder)は現在のAPRが続く前提で、手数料と同じシェア・滞在率で配分すると仮定しています。</li>
+      </ul>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-tier">
+    <div class="head row sb">
+      <div><h2 id="h-tier">手数料ティア比較</h2><p class="sub">同じ資金・同じレンジ幅で 0.05% と 0.25% を比べます。</p></div>
+      <label style="min-width:140px">レンジ幅
+        <select id="t-range"></select>
+      </label>
+    </div>
+    <div class="tablewrap"><table id="tier-table"></table></div>
+  </section>
+
+  <section aria-labelledby="h-scn">
+    <div class="head"><h2 id="h-scn">価格シナリオ</h2><p class="sub" id="scn-sub"></p></div>
+    <div class="row" style="margin-bottom:12px">
+      <label style="width:160px">任意の変動率 (%)<input id="s-custom" type="number" inputmode="decimal" step="any" placeholder="例 -17"></label>
+    </div>
+    <div class="tablewrap"><table id="scn-table"></table></div>
+  </section>
+
+  <section aria-labelledby="h-hist">
+    <div class="head"><h2 id="h-hist">履歴</h2><p class="sub" id="hist-sub"></p></div>
+    <div class="grid g3" id="charts"></div>
+  </section>
+
+  <footer>
+    データ: Cetus 公開API (api-sui.cetus.zone)。価格はプールの sqrtPrice から算出 (USDC=1USD)。試算は投資助言ではありません。<br>
+    履歴は GitHub Actions が6時間ごとに記録しています。
+  </footer>
+</div>
+
+<script type="module">
+import * as C from './calc.mjs';
+
+/* ---------- 安全な localStorage ---------- */
+const PFX = 'cetusLp:v1:';
+const mem = new Map();
+const store = {
+  get(k) { try { const v = localStorage.getItem(PFX + k); return v == null ? null : JSON.parse(v); } catch { return mem.get(k) ?? null; } },
+  set(k, v) { mem.set(k, v); try { localStorage.setItem(PFX + k, JSON.stringify(v)); } catch { /* 保存不可でも動作継続 */ } },
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clsSign = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : '');
+const signUsd = (v) => (Number.isFinite(v) ? (v >= 0 ? '+' : '−') + C.fmtUsd(Math.abs(v)) : '—');
+const hhmm = (t) => new Date(t).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+const dateStr = (t) => new Date(t).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+
+/* ---------- 状態 ---------- */
+const newPos = (name) => ({ name, sui: '', usdc: '', unsui: '', unusdc: '', claimed: '', open: '', sui0: '', usdc0: '', lower: '', upper: '', gas: '' });
+const defaultState = () => ({ tier: '500', active: 'p1', positions: { p1: newPos('ポジション1') }, settings: { vol: '24h', volm: '', sigma: '', stayOn: false, stay: 100, v: '', tierRange: '0.1', custom: '' }, snaps: [] });
+let S = Object.assign(defaultState(), store.get('state') || {});
+S.settings = Object.assign(defaultState().settings, S.settings || {});
+if (!S.positions || !S.positions[S.active]) { S.positions = S.positions && Object.keys(S.positions).length ? S.positions : { p1: newPos('ポジション1') }; S.active = Object.keys(S.positions)[0]; }
+if (!Array.isArray(S.snaps)) S.snaps = [];
+const save = () => store.set('state', S);
+
+let pools = null;       // { '500': pool, '2500': pool }
+let poolsAt = 0;        // 取得時刻
+let poolsFromCache = false;
+let apiError = null;
+let history = [];
+let historyOk = false;
+
+/* ---------- データ取得 ---------- */
+let backoff = 60000;
+async function fetchPools() {
+  const urls = ['limit=10', 'limit=100', 'limit=100&offset=100', 'limit=100&offset=200'];
+  for (const qs of urls) {
+    const res = await fetch(`${C.STATS_URL}?coin_type=${encodeURIComponent(C.USDC_TYPE)}&${qs}`, { cache: 'no-store' });
+    if (res.status === 429) { const e = new Error('rate limited'); e.rate = true; throw e; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const out = C.extractPools(await res.json());
+    if (out['500'] || out['2500']) return out;
+  }
+  throw new Error('対象プールが見つからない(プール未検出)');
+}
+
+async function refresh() {
+  try {
+    pools = await fetchPools();
+    poolsAt = Date.now();
+    poolsFromCache = false;
+    apiError = null;
+    backoff = 60000;
+    store.set('lastGood', { t: poolsAt, pools });
+  } catch (e) {
+    apiError = e;
+    if (e.rate) backoff = Math.min(backoff * 2, 300000);
+    if (!pools) {
+      const lg = store.get('lastGood');
+      if (lg && lg.pools) { pools = lg.pools; poolsAt = lg.t; poolsFromCache = true; }
+    } else {
+      poolsFromCache = true;
+    }
+  }
+  renderAll();
+  schedule();
+}
+
+let timer = null;
+function schedule() {
+  clearTimeout(timer);
+  timer = setTimeout(() => { if (!document.hidden) refresh(); else schedule(); }, backoff);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - poolsAt > 60000) refresh(); });
+
+async function loadHistory() {
+  try {
+    const res = await fetch('data/history.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    history = Array.isArray(j) ? j : [];
+    historyOk = true;
+  } catch { history = []; historyOk = false; }
+  renderAll();
+}
+
+/* ---------- 入力の読み書き ---------- */
+const posFields = { name: 'f-name', sui: 'f-sui', usdc: 'f-usdc', unsui: 'f-unsui', unusdc: 'f-unusdc', claimed: 'f-claimed', open: 'f-open', sui0: 'f-sui0', usdc0: 'f-usdc0', lower: 'f-lower', upper: 'f-upper', gas: 'f-gas' };
+const pos = () => S.positions[S.active];
+const nv = (s) => { const v = parseFloat(s); return Number.isFinite(v) && v >= 0 ? v : 0; };
+const nvOrNull = (s) => { const v = parseFloat(s); return Number.isFinite(v) && v > 0 ? v : null; };
+
+function fillInputs() {
+  const p = pos();
+  for (const [k, id] of Object.entries(posFields)) $(id).value = p[k] ?? '';
+  const st = S.settings;
+  $('r-v').value = st.v; $('r-vol').value = st.vol; $('r-volm').value = st.volm; $('r-sigma').value = st.sigma;
+  $('r-stay-on').checked = !!st.stayOn; $('r-stay').value = st.stay; $('r-stay').disabled = !st.stayOn;
+  $('r-volm-wrap').classList.toggle('hidden', st.vol !== 'manual');
+  $('s-custom').value = st.custom;
+  for (const b of document.querySelectorAll('[data-tier]')) b.setAttribute('aria-pressed', String(b.dataset.tier === S.tier));
+  fillPosSelect();
+}
+
+function fillPosSelect() {
+  const sel = $('pos-select');
+  sel.innerHTML = Object.entries(S.positions).map(([id, p]) => `<option value="${esc(id)}">${esc(p.name || id)}</option>`).join('');
+  sel.value = S.active;
+}
+
+for (const [k, id] of Object.entries(posFields)) {
+  $(id).addEventListener('input', (e) => { pos()[k] = e.target.value; if (k === 'name') fillPosSelect(); save(); renderAll(); });
+}
+$('pos-select').addEventListener('change', (e) => { S.active = e.target.value; save(); fillInputs(); renderAll(); });
+$('pos-new').addEventListener('click', () => {
+  const id = 'p' + Date.now().toString(36);
+  S.positions[id] = newPos('ポジション' + (Object.keys(S.positions).length + 1));
+  S.active = id; save(); fillInputs(); renderAll();
+});
+$('pos-del').addEventListener('click', () => {
+  if (Object.keys(S.positions).length <= 1) { S.positions[S.active] = newPos('ポジション1'); }
+  else { delete S.positions[S.active]; S.active = Object.keys(S.positions)[0]; }
+  save(); fillInputs(); renderAll();
+});
+for (const b of document.querySelectorAll('[data-tier]')) b.addEventListener('click', () => { S.tier = b.dataset.tier; save(); fillInputs(); renderAll(); });
+
+const setSetting = (id, key, fn = (v) => v) => $(id).addEventListener('input', (e) => { S.settings[key] = fn(e.target.value); save(); fillAfterSetting(); renderAll(); });
+function fillAfterSetting() {
+  $('r-volm-wrap').classList.toggle('hidden', S.settings.vol !== 'manual');
+  $('r-stay').disabled = !S.settings.stayOn;
+}
+setSetting('r-v', 'v'); setSetting('r-vol', 'vol'); setSetting('r-volm', 'volm'); setSetting('r-sigma', 'sigma');
+setSetting('r-stay', 'stay', Number); setSetting('t-range', 'tierRange'); setSetting('s-custom', 'custom');
+$('r-stay-on').addEventListener('change', (e) => { S.settings.stayOn = e.target.checked; save(); fillAfterSetting(); renderAll(); });
+
+$('snap-save').addEventListener('click', () => {
+  const m = computePosition();
+  if (!m || !(m.value > 0)) return;
+  S.snaps.push({ t: Date.now(), id: S.active, value: m.value, P: m.P, fees: m.totalFees });
+  if (S.snaps.length > 500) S.snaps = S.snaps.slice(-500);
+  save(); renderAll();
+});
+
+/* ---------- 計算の束ね ---------- */
+function sigmaInfo() {
+  const info = C.computeSigma(history, Date.now(), '500');
+  const manual = parseFloat(S.settings.sigma);
+  if (Number.isFinite(manual) && manual > 0) return { ...info, sigma: manual / 100, source: '手入力' };
+  const sigma = C.blendSigma(info);
+  return { ...info, sigma, source: info.n > 0 ? (info.provisional ? '履歴(暫定・既定値と混合)' : '履歴') : '既定値' };
+}
+
+function volumeInfo(tier) {
+  const pool = pools[tier];
+  const mode = S.settings.vol;
+  if (mode === 'manual') { const v = nvOrNull(S.settings.volm); if (v) return { v, label: '手動入力' }; }
+  if (mode === 'avg7' || mode === 'avg30') {
+    const days = mode === 'avg7' ? 7 : 30;
+    const a = C.averageVolume(history, days, tier);
+    if (a != null) return { v: a, label: `直近${days}日平均` };
+    return { v: pool.vol24h, label: `直近24h(履歴${days}日分が不足)` };
+  }
+  return { v: pool.vol24h, label: '直近24h' };
+}
+
+function computePosition() {
+  if (!pools || !pools[S.tier]) return null;
+  const pool = pools[S.tier];
+  const p = pos();
+  const P = pool.price;
+  const x = nv(p.sui), y = nv(p.usdc);
+  const value = x * P + y;
+  const unclaimed = nv(p.unsui) * P + nv(p.unusdc);
+  const totalFees = unclaimed + nv(p.claimed);
+  const lower = nvOrNull(p.lower), upper = nvOrNull(p.upper);
+  const hasRange = lower && upper && lower < upper;
+  const sui0 = nv(p.sui0), usdc0 = nv(p.usdc0);
+  const hasInit = sui0 > 0 || usdc0 > 0;
+  const openMs = p.open ? Date.parse(p.open) : NaN;
+  const days = Number.isFinite(openMs) ? (Date.now() - openMs) / 86400000 : null;
+  const gasUsd = nv(p.gas) * P;
+  const m = { pool, P, x, y, value, unclaimed, totalFees, lower, upper, hasRange, sui0, usdc0, hasInit, days, gasUsd };
+  if (hasInit) { const r = C.impermanentLoss({ x, y, x0: sui0, y0: usdc0, Px: P }); m.hodl = r.hodl; m.il = r.il; }
+  if (days != null && days > 0.04 && value > 0) { m.dailyIncome = totalFees / days; m.realApr = (m.dailyIncome * 365) / value; }
+  if (hasRange) {
+    m.L = C.liquidityFromAmounts(x, y, P, lower, upper);
+    m.inRange = P > lower && P < upper;
+    m.toLower = (P - lower) / P;
+    m.toUpper = (upper - P) / P;
+  }
+  return m;
+}
+
+/* ---------- 描画: 全体 ---------- */
+function renderAll() {
+  renderStatus();
+  if (!pools || !pools[S.tier]) { renderEmpty(); return; }
+  renderBanners();
+  renderMarket();
+  renderPosition();
+  renderRange();
+  renderTier();
+  renderScenario();
+  renderCharts();
+}
+
+function renderStatus() {
+  const el = $('status');
+  if (!pools) { el.innerHTML = `<span class="dot off"></span>${apiError ? 'データ取得に失敗' : '読み込み中…'}`; return; }
+  const cls = poolsFromCache ? 'old' : '';
+  el.innerHTML = `<span class="dot ${cls}"></span>${poolsFromCache ? '最終取得値 ' : ''}${hhmm(poolsAt)} 更新`;
+}
+
+function renderEmpty() {
+  $('banners').innerHTML = apiError ? `<div class="banner bad">Cetus API からデータを取得できません: ${esc(apiError.message)}。しばらくしてから再読み込みしてください。</div>` : '';
+  for (const id of ['market', 'pos-results', 'pos-alert', 'range-table', 'tier-table', 'scn-table', 'charts']) $(id).innerHTML = '';
+}
+
+function renderBanners() {
+  const b = [];
+  if (apiError && poolsFromCache) b.push(`<div class="banner bad">最新データを取得できないため、${hhmm(poolsAt)} 時点の値を表示しています (${esc(apiError.message)})。</div>`);
+  if (pools['500'] && pools['2500'] && Math.abs(pools['500'].price / pools['2500'].price - 1) > 0.01)
+    b.push('<div class="banner bad">2つのプールの価格差が1%を超えています。プール価格異常の可能性があり、離脱確率は参考値です。</div>');
+  if (historyOk && history.length) {
+    const si = C.computeSigma(history);
+    if (si.stale) b.push(`<div class="banner">履歴の更新が止まっています (最終 ${si.lastT ? new Date(si.lastT).toLocaleString('ja-JP') : 'なし'})。ボラは既定値に戻ります。</div>`);
+  }
+  $('banners').innerHTML = b.join('');
+}
+
+/* ---------- 市場 ---------- */
+function renderMarket() {
+  const pool = pools[S.tier], other = pools[S.tier === '500' ? '2500' : '500'];
+  const si = sigmaInfo();
+  const feeApr = (pool.vol24h * pool.feeRatePpm / 1e6 * 365) / pool.tvl;
+  const rewardApr = pool.rewarderAprs.reduce((a, b) => a + b, 0);
+  const conc = (2 * Math.sqrt(pool.price) * pool.liquidityHuman) / pool.tvl;
+  const ratio = pool.feeApr24h ? feeApr / pool.feeApr24h : null;
+  $('market-sub').textContent = `Cetus USDC-SUI ${C.POOLS[S.tier].label} プール`;
+  $('market').innerHTML = `
+    <div class="card"><div class="k">SUI 価格 (プール)</div><div class="v big num">${C.fmtUsd(pool.price, 4)}</div>
+      <div class="n">${other ? C.POOLS[S.tier === '500' ? '2500' : '500'].label + ' プール: ' + C.fmtUsd(other.price, 4) : ''}</div></div>
+    <div class="card"><div class="k">プール手数料APR (24h出来高ベース)</div><div class="v num">${C.fmtPct(feeApr)}</div>
+      <div class="n">報酬APR ${C.fmtPct(rewardApr)} / 手数料率 ${(pool.feeRatePpm / 1e4).toFixed(2)}%</div></div>
+    <div class="card"><div class="k">TVL / 出来高 24h</div><div class="v num">${C.fmtUsd(pool.tvl, 0)}</div>
+      <div class="n">出来高 ${C.fmtUsd(pool.vol24h, 0)} · 手数料 ${C.fmtUsd(pool.fee24h, 0)}</div></div>
+    <div class="card"><div class="k">流動性の集中度 / ボラ σ</div><div class="v num">${C.fmtNum(conc, 1)}倍</div>
+      <div class="n">σ ${(si.sigma * 100).toFixed(2)}%/日 (${si.source}${si.n ? ` · n=${si.n}` : ''})</div></div>`;
+  let note = '価格はプールの sqrtPrice から算出しています。';
+  if (ratio != null && Math.abs(ratio - 1) > 0.2) note += ` ※ API の fee APR と ${(ratio * 100).toFixed(0)}% ずれています (集計窓の違い)。`;
+  if (si.provisional) note += ` ボラは暫定値です (有効サンプル ${si.n}/${C.MIN_SIGMA_SAMPLES}${si.relError ? ` · 推定誤差 約±${(si.relError * 100).toFixed(0)}%` : ''})。`;
+  $('market-note').textContent = note;
+}
+
+/* ---------- ポジション ---------- */
+function renderPosition() {
+  const m = computePosition();
+  const cards = [];
+  const empty = !(m.value > 0);
+  cards.push(card('現在の資産額', empty ? '—' : C.fmtUsd(m.value), empty ? 'SUI・USDC 数量を入力' : `${C.fmtNum(m.x, 2)} SUI + ${C.fmtNum(m.y, 2)} USDC`));
+  cards.push(card('手数料収入 (累計)', C.fmtUsd(m.totalFees), `未回収 ${C.fmtUsd(m.unclaimed)} + 回収済み ${C.fmtUsd(nv(pos().claimed))}`));
+  if (m.dailyIncome != null) cards.push(card('実績の日次収入', C.fmtUsd(m.dailyIncome), `年率換算 ${C.fmtPct(m.realApr)} (現在の評価額基準・${m.days.toFixed(1)}日)`));
+  else cards.push(card('実績の日次収入', '—', '開始日時と評価額を入力'));
+  if (m.hasInit) {
+    const net = m.il + m.totalFees;
+    cards.push(card('HODL比 (IL)', `<span class="${clsSign(m.il)}">${signUsd(m.il)}</span>`, `HODL ${C.fmtUsd(m.hodl)} · 手数料込み <span class="${clsSign(net)}">${signUsd(net)}</span>`));
+  } else cards.push(card('HODL比 (IL)', '—', '投入時の数量を入力'));
+
+  if (m.hasRange) {
+    const rf = value => C.rangeFee({ P: m.P, Pa: m.lower, Pb: m.upper, V: value, pool: m.pool, volume: volumeInfo(S.tier).v, sigma: sigmaInfo().sigma, stay: S.settings.stayOn ? S.settings.stay / 100 : undefined });
+    if (!empty && m.P > m.lower && m.P < m.upper) {
+      const row = rf(m.value);
+      m.est = row;
+      cards.push(card('想定日次手数料 (このレンジ)', C.fmtUsd(row.dailyFee), `APR ${C.fmtPct(row.apr)} · 報酬込み ${C.fmtPct(row.aprWithReward)} · 離脱確率(7日) ${C.fmtPct(row.exitProb, 0)}`));
+      const loss = m.hasInit ? Math.max(0, -m.il) : 0;
+      const need = loss + m.gasUsd;
+      let be = '—', ben = 'ILの回収分とガス代を、想定日次手数料で割った日数';
+      if (row.dailyFee > 0) { be = need <= 0 ? '回収済み' : (need / row.dailyFee).toFixed(1) + ' 日'; ben = `IL損失 ${C.fmtUsd(loss)} + ガス ${C.fmtUsd(m.gasUsd)} を回収`; }
+      cards.push(card('損益分岐', be, ben));
+    } else if (!empty) {
+      cards.push(card('想定日次手数料 (このレンジ)', '$0.00', 'レンジ外のため手数料は発生しません'));
+    }
+  }
+  $('pos-results').innerHTML = cards.join('');
+
+  let alert = '';
+  if (m.hasRange) {
+    const near = Math.min(m.toLower, m.toUpper);
+    let cls = 'banner', msg;
+    if (!m.inRange) { cls += ' bad'; msg = `現在価格 ${C.fmtUsd(m.P, 4)} はレンジ (${C.fmtUsd(m.lower, 4)} – ${C.fmtUsd(m.upper, 4)}) の外です。手数料は発生していません。`; }
+    else {
+      msg = `レンジ内: 下限まで ${C.fmtPct(m.toLower)} / 上限まで ${C.fmtPct(m.toUpper)}。`;
+      if (near < 0.03) { cls += ' bad'; msg += ' 端に近づいています。'; }
+      else { cls = 'note'; }
+    }
+    alert = `<div class="${cls}" style="margin-top:12px">${msg}</div>`;
+    if (m.L && !empty) {
+      const est = C.amountsAt(m.L, m.P, m.lower, m.upper);
+      const diff = (est.x * m.P + est.y) / m.value - 1;
+      alert += `<p class="note">レンジから推定した数量: ${C.fmtNum(est.x, 2)} SUI + ${C.fmtNum(est.y, 2)} USDC (評価額 ${C.fmtUsd(est.x * m.P + est.y)}、入力との差 ${C.fmtPct(diff)})。${Math.abs(diff) > 0.02 ? '差が大きい場合は、レンジまたは数量の入力を確認してください。' : ''}</p>`;
+    } else if (m.L === null && !empty) {
+      alert += '<p class="note warn">入力不整合: レンジ内なのに SUI か USDC のどちらかが0です。</p>';
+    }
+  } else {
+    alert = '<p class="note">レンジの下限・上限を入力すると、離脱アラートと損益分岐が表示されます。</p>';
+  }
+  $('pos-alert').innerHTML = alert;
+  const mySnaps = S.snaps.filter((s) => s.id === S.active);
+  $('snap-info').textContent = mySnaps.length ? `記録 ${mySnaps.length}件 (最新 ${new Date(mySnaps[mySnaps.length - 1].t).toLocaleString('ja-JP')})` : '';
+}
+const card = (k, v, n) => `<div class="card"><div class="k">${k}</div><div class="v num">${v}</div><div class="n">${n}</div></div>`;
+
+/* ---------- レンジ別表 ---------- */
+function baseValue() {
+  const typed = nvOrNull(S.settings.v);
+  if (typed) return typed;
+  const m = computePosition();
+  return m && m.value > 0 ? m.value : 1000;
+}
+
+function renderRange() {
+  const pool = pools[S.tier];
+  const P = pool.price;
+  const V = baseValue();
+  const si = sigmaInfo();
+  const vol = volumeInfo(S.tier);
+  const anomaly = pools['500'] && pools['2500'] && Math.abs(pools['500'].price / pools['2500'].price - 1) > 0.01;
+  $('range-sub').textContent = `試算資金 ${C.fmtUsd(V, 0)} · 出来高 ${C.fmtUsd(vol.v, 0)}/日 (${vol.label}) · σ ${(si.sigma * 100).toFixed(2)}%/日`;
+  const rows = C.RANGES.map((r) => {
+    const tr = C.tickRange(P, r, pool.tickSpacing);
+    const row = C.rangeFee({ P, Pa: tr.Pa, Pb: tr.Pb, V, pool, volume: vol.v, sigma: si.sigma, stay: S.settings.stayOn ? S.settings.stay / 100 : undefined });
+    return `<tr><td>±${(r * 100).toFixed(0)}%</td>
+      <td class="num">${C.fmtNum(tr.Pa, 4)} – ${C.fmtNum(tr.Pb, 4)}</td>
+      <td class="num">${C.fmtUsd(row.dailyFee)}</td>
+      <td class="num">${C.fmtPct(row.apr)}</td>
+      <td class="num">${C.fmtPct(row.aprWithReward)}</td>
+      <td class="num">${C.fmtNum(row.capEff, 1)}倍</td>
+      <td class="num">${C.fmtNum(row.poolAvgRatio, 2)}倍</td>
+      <td class="num">${C.fmtPct(row.stay, 0)}</td>
+      <td class="num ${row.exitProb > 0.8 ? 'neg' : ''}">${C.fmtPct(row.exitProb, 0)}${anomaly ? '*' : ''}</td></tr>`;
+  }).join('');
+  $('range-table').innerHTML = `<thead><tr><th>レンジ</th><th>価格帯 (tick丸め後)</th><th>日次手数料</th><th>APR</th><th>APR(報酬込)</th><th>資本効率</th><th>プール平均比</th><th>滞在率</th><th>離脱確率 7日</th></tr></thead><tbody>${rows}</tbody>`;
+  $('range-note').innerHTML = `LP取り分ベース(プロトコル手数料${C.PROTOCOL_FEE_RATE * 100}%控除)。レンジ内に滞在している時間の割合(滞在率)を掛けています。<b>離脱確率</b>は7日以内に一度でも範囲外に出る確率です${anomaly ? '(*価格異常のため参考値)' : ''}。`;
+}
+
+/* ---------- ティア比較 ---------- */
+function renderTier() {
+  const sel = $('t-range');
+  if (!sel.options.length) sel.innerHTML = C.RANGES.map((r) => `<option value="${r}">±${(r * 100).toFixed(0)}%</option>`).join('');
+  sel.value = S.settings.tierRange;
+  const r = Number(S.settings.tierRange) || 0.1;
+  const V = baseValue();
+  const si = sigmaInfo();
+  const rows = ['500', '2500'].filter((k) => pools[k]).map((k) => {
+    const pool = pools[k];
+    const tr = C.tickRange(pool.price, r, pool.tickSpacing);
+    const vol = volumeInfo(k);
+    const row = C.rangeFee({ P: pool.price, Pa: tr.Pa, Pb: tr.Pb, V, pool, volume: vol.v, sigma: si.sigma, stay: S.settings.stayOn ? S.settings.stay / 100 : undefined });
+    return `<tr class="${k === S.tier ? 'hl' : ''}"><td>${C.POOLS[k].label}</td>
+      <td class="num">${C.fmtNum(tr.Pa, 4)} – ${C.fmtNum(tr.Pb, 4)}</td>
+      <td class="num">${C.fmtPct(row.share, 3)}</td>
+      <td class="num">${C.fmtUsd(row.dailyFee)}</td>
+      <td class="num">${C.fmtPct(row.apr)}</td>
+      <td class="num">${C.fmtPct(row.aprWithReward)}</td>
+      <td class="num">${C.fmtPct(row.exitProb, 0)}</td></tr>`;
+  }).join('');
+  $('tier-table').innerHTML = `<thead><tr><th>ティア</th><th>価格帯</th><th>シェア</th><th>日次手数料</th><th>APR</th><th>APR(報酬込)</th><th>離脱確率 7日</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/* ---------- シナリオ ---------- */
+function renderScenario() {
+  const m = computePosition();
+  const P = m.P;
+  let L, Pa, Pb, basis;
+  if (m.hasRange && m.L) { L = m.L; Pa = m.lower; Pb = m.upper; basis = 'あなたのレンジ'; }
+  else {
+    const V = m.value > 0 ? m.value : baseValue();
+    const tr = C.tickRange(P, 0.1, m.pool.tickSpacing);
+    Pa = tr.Pa; Pb = tr.Pb; L = C.clmmLiquidity(P, Pa, Pb, V);
+    basis = m.value > 0 ? '±10%レンジを仮定' : `±10%レンジ・試算資金 ${C.fmtUsd(V, 0)} を仮定`;
+  }
+  $('scn-sub').textContent = `${basis}: ${C.fmtUsd(Pa, 4)} – ${C.fmtUsd(Pb, 4)}${m.hasInit ? ' · HODL比は投入時数量基準' : ''}`;
+  const steps = [-50, -30, -20, -10, -5, 0, 5, 10, 20, 30, 50];
+  const c = parseFloat(S.settings.custom);
+  if (Number.isFinite(c) && c > -99 && !steps.includes(c)) steps.push(c);
+  steps.sort((a, b) => a - b);
+  const now = C.positionValueAt(L, P, Pa, Pb).value;
+  const rows = steps.map((pct) => {
+    const Px = P * (1 + pct / 100);
+    const v = C.positionValueAt(L, Px, Pa, Pb);
+    const inR = Px > Pa && Px < Pb;
+    const hodl = m.hasInit ? m.sui0 * Px + m.usdc0 : null;
+    return `<tr class="${pct === 0 ? 'hl' : ''}"><td>${pct > 0 ? '+' : ''}${pct}%</td>
+      <td class="num">${C.fmtUsd(Px, 4)}</td>
+      <td class="num">${C.fmtNum(v.x, 2)} / ${C.fmtNum(v.y, 2)}</td>
+      <td class="num">${C.fmtUsd(v.value)}</td>
+      <td class="num ${clsSign(v.value - now)}">${signUsd(v.value - now)}</td>
+      <td class="num ${hodl != null ? clsSign(v.value - hodl) : ''}">${hodl != null ? signUsd(v.value - hodl) : '—'}</td>
+      <td>${inR ? 'レンジ内' : '<span class="neg">レンジ外</span>'}</td></tr>`;
+  }).join('');
+  $('scn-table').innerHTML = `<thead><tr><th>価格変動</th><th>SUI価格</th><th>SUI / USDC</th><th>資産額</th><th>現在比</th><th>HODL比</th><th>状態</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/* ---------- チャート ---------- */
+function lineChart(title, pts, fmt, color = 'var(--accent)') {
+  if (pts.length < 2) return `<div class="card"><h3>${title}</h3><p class="small" style="margin-top:8px">データが2点以上溜まると表示されます。</p></div>`;
+  const W = 320, H = 150, pl = 8, pr = 8, pt = 10, pb = 22;
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (y0 === y1) { y0 *= 0.99; y1 *= 1.01; }
+  const sx = (x) => pl + ((x - x0) / (x1 - x0 || 1)) * (W - pl - pr);
+  const sy = (y) => pt + (1 - (y - y0) / (y1 - y0)) * (H - pt - pb);
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join('');
+  const last = pts[pts.length - 1];
+  return `<div class="card"><div class="row sb"><h3>${title}</h3><span class="num small">${fmt(last.y)}</span></div>
+    <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${title}の推移">
+      <line class="axis" x1="${pl}" x2="${W - pr}" y1="${H - pb}" y2="${H - pb}"/>
+      <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+      <text x="${pl}" y="${pt + 8}">${fmt(y1)}</text><text x="${pl}" y="${H - pb - 4}">${fmt(y0)}</text>
+      <text x="${pl}" y="${H - 6}">${dateStr(x0)}</text><text x="${W - pr}" y="${H - 6}" text-anchor="end">${dateStr(x1)}</text>
+    </svg></div>`;
+}
+
+function renderCharts() {
+  const k = S.tier;
+  const series = (f) => history.map((e) => ({ x: Date.parse(e.t), y: f(e.pools?.[k]) })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y > 0);
+  const mine = S.snaps.filter((s) => s.id === S.active).map((s) => ({ x: s.t, y: s.value }));
+  $('hist-sub').textContent = historyOk
+    ? `${C.POOLS[k].label} プール · ${history.length}件 (6時間ごと)${history.length ? ' · 最終 ' + new Date(Date.parse(history[history.length - 1].t)).toLocaleString('ja-JP') : ''}`
+    : '履歴データを読み込めませんでした (ローカル実行では空の場合があります)。';
+  $('charts').innerHTML =
+    lineChart('SUI 価格 (USD)', series((p) => p?.p), (v) => C.fmtUsd(v, 4)) +
+    lineChart('TVL', series((p) => p?.tvl), (v) => '$' + Math.round(v / 1000).toLocaleString('en-US') + 'K', 'var(--good)') +
+    lineChart('出来高 24h', series((p) => p?.vol24h), (v) => '$' + (v / 1e6).toFixed(2) + 'M', 'var(--text2)') +
+    lineChart('あなたの資産額 (記録)', mine, (v) => C.fmtUsd(v, 0));
+}
+
+/* ---------- 起動 ---------- */
+fillInputs();
+renderAll();
+refresh();
+loadHistory();
+setInterval(loadHistory, 6 * 3600 * 1000);
+setInterval(() => { if (!document.hidden) renderStatus(); }, 30000);
+
+if ('serviceWorker' in navigator && /^https:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

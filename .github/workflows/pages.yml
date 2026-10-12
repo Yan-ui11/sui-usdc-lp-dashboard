@@ -1,0 +1,79 @@
+name: pages
+
+# snapshot が bot でコミットしても GITHUB_TOKEN の push は他の workflow を起動しない。
+# そのため同一 workflow 内で snapshot → deploy を連結している(ループも原理的に起きない)。
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['data/**']
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Append snapshot to data/history.json
+        run: node scripts/snapshot.mjs
+      - name: Commit and push (retry with rebase)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/history.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git commit -m "chore: snapshot history"
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            git pull --rebase origin main
+          done
+          echo "push failed" >&2
+          exit 1
+
+  deploy:
+    needs: snapshot
+    # push 時は snapshot が skip されるため always() が必要。schedule で snapshot が失敗したときは
+    # デプロイしない(前回の公開版が残る)。
+    if: (always() && needs.snapshot.result != 'failure') || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # snapshot のコミットを含む最新の main を取得する(起動時の SHA ではなく ref: main)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+      - name: Build site
+        run: |
+          mkdir _site
+          cp index.html calc.mjs sw.js manifest.json _site/
+          cp -r icons data _site/
+          VERSION=$(cat index.html calc.mjs sw.js manifest.json | sha1sum | cut -c1-12)
+          sed -i "s/__CACHE_VERSION__/${VERSION}/g" _site/sw.js
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
